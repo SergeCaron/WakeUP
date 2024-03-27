@@ -164,3 +164,4 @@ if ($ScanSelectHosts) {
 
 # In GUI mode, wait for the user's confirmation before Exit
 if ($Null -eq $Target) { Pause }
+
