@@ -33,14 +33,14 @@ if ($Null -eq $Target) {
 	$FileBrowser = New-Object System.Windows.Forms.OpenFileDialog -Property @{
 		# InitialDirectory = [Environment]::GetFolderPath('Desktop') 
 		InitialDirectory = $script:MyInvocation.MyCommand.Path
-		Filter = ''
-		Title = 'Please locate your list of MAC addresses'
+		Filter           = ''
+		Title            = 'Please locate your list of MAC addresses'
 	}
 	$FileBrowser.ShowDialog() | Out-Null
 
 	# Get the list of MAC addresses, which may be a null string if it contains only comments or if the user aborts:
 	if (![string]::IsNullOrEmpty($FileBrowser.FileName)) {
-		$TargetHosts = (Get-Content $FileBrowser.FileName) -match "^[^#]" | ConvertFrom-String -PropertyNames HostName,MACAddress
+		$TargetHosts = (Get-Content $FileBrowser.FileName) -match "^[^#]" | ConvertFrom-String -PropertyNames HostName, MACAddress
 
 		# Make sure we have an array!
 		if ($Null -ne $TargetHosts) {
@@ -70,7 +70,7 @@ if ($Null -eq $Target) {
 else {
 	# Command line mode : get the MAC addresses (there is at least one argument ;)
 	$TargetHosts = foreach ($MAC in $Target) `
- 		{ [pscustomobject]@{ HostName = "Unnamed"; MACAddress = $MAC } }
+	{ [pscustomobject]@{ HostName = "Unnamed"; MACAddress = $MAC } }
 	# We won't have a hostname to poke on exit
 	if ($NoScan.IsPresent) { Write-Warning "-NoScan ignored in command line mode." }
 	$ScanSelectHosts = $False
@@ -86,10 +86,11 @@ foreach ($Machine in $TargetHosts) {
 
 	try {
 		$Machine.PhysicalAddress = $([System.Net.NetworkInformation.PhysicalAddress]::Parse(`
- 					($Machine.MACAddress.ToUpper() -replace '[^0-9A-F]',''))).GetAddressBytes()
+				($Machine.MACAddress.ToUpper() -replace '[^0-9A-F]', ''))).GetAddressBytes()
 		if ($Machine.PhysicalAddress.Length -ne 6) { throw }
 	}
-	catch { Write-Host "Invalid parameter: $($Machine.MACAddress)"
+	catch {
+		Write-Host "Invalid parameter: $($Machine.MACAddress)"
 		$Machine.PhysicalAddress = @()
 	}
 
@@ -108,25 +109,26 @@ foreach ($Machine in $TargetHosts) {
 # Constants
 $DiscardProtocolPort = 9 # TCP/UDP sink
 $SystemReservedPort = 0 # Any port available at runtime
-$NetworkBroadcastV4 = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Broadcast,$DiscardProtocolPort)
-$NetworkMulticastV6 = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Parse("FF02::1"),$DiscardProtocolPort)
+$NetworkBroadcastV4 = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Broadcast, $DiscardProtocolPort)
+$NetworkMulticastV6 = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Parse("FF02::1"), $DiscardProtocolPort)
 
 # A packet is considered "magic" when it contains FF FF FF FF FF FF followed by sixteen instances of the card's six-byte MAC address. 
 # See AMD's white paper, "Magic Packet Technology", https://www.amd.com/content/dam/amd/en/documents/archived-tech-docs/white-papers/20213.pdf 
-$MagicPacket = [byte[]](,0xFF * (17 * 6))
+$MagicPacket = [byte[]](, 0xFF * (17 * 6))
 
 # This may be a multi-homed system ...
 [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces() `
- 	| Where-Object { $_.NetworkInterfaceType -ne [System.Net.NetworkInformation.NetworkInterfaceType]::Loopback `
- 		-and $_.OperationalStatus -eq [System.Net.NetworkInformation.OperationalStatus]::Up } `
- 	| ForEach-Object { `
- 		Write-Host "Targeting $($_.Name) ($($_.Description)) ... " -NoNewline
+| Where-Object { $_.NetworkInterfaceType -ne [System.Net.NetworkInformation.NetworkInterfaceType]::Loopback `
+		-and $_.OperationalStatus -eq [System.Net.NetworkInformation.OperationalStatus]::Up } `
+| ForEach-Object { `
+		Write-Host "Targeting $($_.Name) ($($_.Description)) ... " -NoNewline
 	# ... and each interface may be bound to several protocols...
-	foreach ($IP in ($_.GetIPProperties().UnicastAddresses).Address) { `
- 			$Here = [System.Net.Sockets.UdpClient]::new(`
- 				# Force a reparse of IPv6 addresses to also include scope
-			[System.Net.IPEndPoint]::new($([ipaddress]$IP.IPAddressToString),`
- 					$SystemReservedPort))
+	foreach ($IP in ($_.GetIPProperties().UnicastAddresses).Address) {
+ `
+			$Here = [System.Net.Sockets.UdpClient]::new(`
+				# Force a reparse of IPv6 addresses to also include scope
+				[System.Net.IPEndPoint]::new($([ipaddress]$IP.IPAddressToString), `
+					$SystemReservedPort))
 		$Here.EnableBroadcast = $True
 		# ... and there may be more than one target
 		foreach ($Machine in $TargetHosts) {
@@ -136,10 +138,10 @@ $MagicPacket = [byte[]](,0xFF * (17 * 6))
 
 				switch ($IP.AddressFamily) {
 					$([System.Net.Sockets.AddressFamily]::InterNetwork) `
- 						{ $Here.Send($MagicPacket,$MagicPacket.Length,$NetworkBroadcastV4) | Out-Null }
+					{ $Here.Send($MagicPacket, $MagicPacket.Length, $NetworkBroadcastV4) | Out-Null }
 
 					$([System.Net.Sockets.AddressFamily]::InterNetworkV6) `
- 						{ $Here.Send($MagicPacket,$MagicPacket.Length,$NetworkMulticastV6) | Out-Null }
+					{ $Here.Send($MagicPacket, $MagicPacket.Length, $NetworkMulticastV6) | Out-Null }
 
 				}
 			}
